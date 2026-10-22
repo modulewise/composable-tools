@@ -16,4 +16,4 @@ composable-factory = { git = "https://github.com/modulewise/composable-factory",
 wit-bindgen.workspace = true
 
 [dev-dependencies]
-wasmtime = "49"
+wasmtime = "50"
