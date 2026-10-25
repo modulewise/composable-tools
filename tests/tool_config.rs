@@ -1,21 +1,24 @@
 //! Graph processing of `[tool]` and `[toolset]` config with `ToolService`.
 
+use std::io::Write;
+
 use anyhow::Result;
 use composable_runtime::composition::graph::Node;
 use composable_runtime::{ComponentGraph, Service};
 use composable_tools::ToolService;
 
-/// The graph built from `toml`, written to a file named for `test`.
+/// The graph built from `toml`, written to a temp file named for `test`.
 fn graph(test: &str, toml: &str) -> Result<ComponentGraph> {
-    let path = std::env::temp_dir().join(format!("composable-tools-{test}.toml"));
-    std::fs::write(&path, toml)?;
+    let mut file = tempfile::Builder::new()
+        .prefix(&format!("composable-tools-{test}-"))
+        .suffix(".toml")
+        .tempfile()?;
+    file.write_all(toml.as_bytes())?;
     let handler = ToolService.config_handler().expect("a config handler");
-    let graph = ComponentGraph::builder()
-        .from_path(&path)
+    ComponentGraph::builder()
+        .from_path(file.path())
         .add_handler(handler)
-        .build();
-    std::fs::remove_file(&path)?;
-    graph
+        .build()
 }
 
 #[test]

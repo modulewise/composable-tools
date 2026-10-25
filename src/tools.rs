@@ -212,7 +212,7 @@ mod tests {
     use std::sync::Mutex;
 
     use composable_runtime::{
-        ComponentInvoker, ComponentMetadata, Export, Interface, InterfaceName,
+        ComponentInstance, ComponentInvoker, ComponentMetadata, Export, Interface, InterfaceName,
     };
     use serde_json::json;
 
@@ -295,6 +295,15 @@ mod tests {
                 .values()
                 .filter(|c| selector.is_none_or(|s| s.matches(&c.metadata.to_selectable())))
                 .collect()
+        }
+
+        // Its components have no bytes, so none can be instantiated.
+        fn instantiate<'a>(
+            &'a self,
+            component_name: &'a str,
+            _env: Option<HashMap<String, String>>,
+        ) -> Pin<Box<dyn Future<Output = Result<ComponentInstance>> + Send + 'a>> {
+            Box::pin(async move { bail!("{component_name} has no bytes to instantiate") })
         }
     }
 
