@@ -95,14 +95,20 @@ impl McpServer {
         )
     }
 
-    /// Run the MCP server, listening for HTTP requests until the shutdown signal fires.
-    pub async fn run(self, mut shutdown: watch::Receiver<bool>) -> Result<()> {
+    /// Run the MCP server on `listener`, serving HTTP requests until the
+    /// shutdown signal fires. The caller binds `listener` to this server's
+    /// address before spawning, so an address that is taken fails startup.
+    pub async fn run(
+        self,
+        listener: std::net::TcpListener,
+        mut shutdown: watch::Receiver<bool>,
+    ) -> Result<()> {
         let addr = self.addr;
         // Keep a handle to the tracer provider for shutdown.
         let tracer_provider = self.tracer_provider.clone();
 
         let router = self.router();
-        let tcp_listener = tokio::net::TcpListener::bind(addr).await?;
+        let tcp_listener = tokio::net::TcpListener::from_std(listener)?;
 
         tracing::info!("Streamable HTTP endpoint: http://{addr}/mcp");
 
