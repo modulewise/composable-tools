@@ -12,12 +12,6 @@ use serde_json::{Map, Value, json};
 /// Adapts a `composable:runtime/function` to `composable:tools/tool`.
 const TOOL_ADAPTER: &str = "oci://ghcr.io/modulewise/component/tool-adapter:0.1.0";
 
-/// Generates a `composable:runtime/function` for a target's function.
-const FUNCTION_FACTORY: &str = "oci://ghcr.io/modulewise/component/function-factory:0.5.1";
-
-/// Maps between JSON and the WIT values of generated functions.
-const JSON_MAPPER: &str = "oci://ghcr.io/modulewise/component/json-mapper:0.4.0";
-
 /// Generates a `composable:tools/toolset` over named tools and toolsets.
 const TOOLSET_FACTORY: &str = "oci://ghcr.io/modulewise/component/toolset-factory:0.1.2";
 
@@ -42,9 +36,6 @@ const LOG_TO_STDOUT: &str = "oci://ghcr.io/componentized/logging/to-stdout:0.3.0
 /// Redirects stdout to stderr.
 const STDOUT_TO_STDERR: &str = "oci://ghcr.io/componentized/cli/stdout-to-stderr:0.2.0";
 
-/// The mapper every generated function imports, emitted once.
-const JSON_MAPPER_NAME: &str = "_json-mapper";
-
 /// The logger every MCP client imports, emitted once.
 const MCP_LOGGER_NAME: &str = "_mcp-logger";
 
@@ -67,7 +58,7 @@ const MCP_CLOCKS_NAME: &str = "_mcp-clocks";
 /// The lowest level of the MCP clients' log records that is written.
 const MCP_LOG_LEVEL: &str = "warn";
 
-/// The function-factory options a `[tool]` passes through.
+/// The `[function]` options a `[tool]` passes through.
 const FUNCTION_OPTIONS: [&str; 2] = ["function", "world"];
 
 /// The tool-adapter options a `[tool]` passes through.
@@ -86,13 +77,12 @@ const ADAPTER_OPTIONS: [&str; 9] = [
 /// Handles `[tool.NAME]`, `[toolset.NAME]`, `[mcp-tool.NAME]` and
 /// `[mcp-toolset.NAME]` definitions.
 ///
-/// A tool is a tool-adapter named `NAME` over a function generated for its
+/// A tool is a tool-adapter named `NAME` over a `[function]` for its
 /// `target`. A toolset is a component named `NAME`, generated over its `tools`
 /// and/or `toolsets`. An MCP tool or toolset is a component named `NAME`
 /// composed with an MCP client and an HTTP client, for its `server-url`.
 #[derive(Default)]
 pub(crate) struct ToolConfigHandler {
-    json_mapper_emitted: bool,
     mcp_shared_emitted: bool,
 }
 
@@ -136,11 +126,7 @@ impl ConfigHandler for ToolConfigHandler {
             mut properties,
         } = definition;
         let definitions = match category.as_str() {
-            "tool" => with_shared(
-                &mut self.json_mapper_emitted,
-                tool(&name, &mut properties)?,
-                json_mapper,
-            ),
+            "tool" => tool(&name, &mut properties)?,
             "toolset" => toolset(&name, &mut properties)?,
             "mcp-tool" => with_shared(
                 &mut self.mcp_shared_emitted,
@@ -179,13 +165,11 @@ fn tool(name: &str, properties: &mut PropertyMap) -> Result<Vec<Definition>> {
         None => bail!("Tool '{name}' is missing required 'target'"),
     };
     let function = format!("_{name}-function");
-    let factory = format!("_{name}-function-factory");
 
-    let mut factory_config =
-        Map::from_iter([("wit".to_string(), json!(format!("${{wit({target})}}")))]);
+    let mut function_properties = Map::from_iter([("target".to_string(), json!(target))]);
     for option in FUNCTION_OPTIONS {
         if let Some(value) = properties.remove(option) {
-            factory_config.insert(option.to_string(), value);
+            function_properties.insert(option.to_string(), value);
         }
     }
     let mut adapter_config = Map::from_iter([("name".to_string(), json!(name))]);
@@ -200,20 +184,8 @@ fn tool(name: &str, properties: &mut PropertyMap) -> Result<Vec<Definition>> {
             name,
             json!({ "uri": TOOL_ADAPTER, "imports": [function], "config": adapter_config }),
         ),
-        component(
-            &function,
-            json!({ "uri": format!("factory:{factory}"), "imports": [target, JSON_MAPPER_NAME] }),
-        ),
-        component(
-            &factory,
-            json!({ "uri": FUNCTION_FACTORY, "config": factory_config }),
-        ),
+        generic("function", &function, Value::Object(function_properties)),
     ])
-}
-
-/// The mapper every generated function shares.
-fn json_mapper() -> Vec<Definition> {
-    vec![component(JSON_MAPPER_NAME, json!({ "uri": JSON_MAPPER }))]
 }
 
 fn toolset(name: &str, properties: &mut PropertyMap) -> Result<Vec<Definition>> {
@@ -385,6 +357,11 @@ mod tests {
         produced_in("component", produced)
     }
 
+    /// The `[function.*]` definitions produced, by name.
+    fn functions(produced: &[Definition]) -> HashMap<String, Value> {
+        produced_in("function", produced)
+    }
+
     /// The `[capability.*]` definitions produced, by name.
     fn capabilities(produced: &[Definition]) -> HashMap<String, Value> {
         produced_in("capability", produced)
@@ -406,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn a_tool_is_an_adapter_over_a_generated_function() {
+    fn a_tool_is_an_adapter_over_a_function() {
         let produced = ToolConfigHandler::default()
             .handle_definition(definition(
                 "tool",
@@ -414,10 +391,9 @@ mod tests {
                 json!({ "target": "weather", "description": "The forecast" }),
             ))
             .unwrap();
-        let components = components(&produced);
 
         assert_eq!(
-            components["forecast"],
+            components(&produced)["forecast"],
             json!({
                 "uri": TOOL_ADAPTER,
                 "imports": ["_forecast-function"],
@@ -425,22 +401,14 @@ mod tests {
             })
         );
         assert_eq!(
-            components["_forecast-function"],
-            json!({
-                "uri": "factory:_forecast-function-factory",
-                "imports": ["weather", "_json-mapper"],
-            })
+            functions(&produced)["_forecast-function"],
+            json!({ "target": "weather" })
         );
-        assert_eq!(
-            components["_forecast-function-factory"],
-            json!({ "uri": FUNCTION_FACTORY, "config": { "wit": "${wit(weather)}" } })
-        );
-        assert_eq!(components["_json-mapper"], json!({ "uri": JSON_MAPPER }));
-        assert_eq!(produced.len(), 4);
+        assert_eq!(produced.len(), 2);
     }
 
     #[test]
-    fn a_tool_passes_its_options_to_the_factory_and_the_adapter() {
+    fn a_tool_passes_its_options_to_the_function_and_the_adapter() {
         let produced = ToolConfigHandler::default()
             .handle_definition(definition(
                 "tool",
@@ -454,42 +422,18 @@ mod tests {
                 }),
             ))
             .unwrap();
-        let components = components(&produced);
 
         assert_eq!(
-            components["_forecast-function-factory"]["config"],
-            json!({ "wit": "${wit(weather)}", "function": "daily", "world": "forecaster" })
+            functions(&produced)["_forecast-function"],
+            json!({ "target": "weather", "function": "daily", "world": "forecaster" })
         );
         assert_eq!(
-            components["forecast"]["config"],
+            components(&produced)["forecast"]["config"],
             json!({
                 "name": "forecast",
                 "read-only-hint": true,
                 "request-meta": { "units": "x-units" },
             })
-        );
-    }
-
-    #[test]
-    fn the_json_mapper_is_emitted_only_once_and_shared_by_all_tools() {
-        let mut handler = ToolConfigHandler::default();
-        let first = handler
-            .handle_definition(definition(
-                "tool",
-                "forecast",
-                json!({ "target": "weather" }),
-            ))
-            .unwrap();
-        let second = handler
-            .handle_definition(definition("tool", "alerts", json!({ "target": "weather" })))
-            .unwrap();
-
-        assert!(components(&first).contains_key("_json-mapper"));
-        let second = components(&second);
-        assert!(!second.contains_key("_json-mapper"));
-        assert_eq!(
-            second["_alerts-function"]["imports"],
-            json!(["weather", "_json-mapper"])
         );
     }
 
