@@ -7,6 +7,8 @@ cd "$DIR"
 
 NAME="${1:-World}"
 
+# Build first so compile time does not count against the wait below.
+cargo build --quiet -p composable-mcp-server
 cargo run --quiet -p composable-mcp-server -- config.toml &
 SERVER_PID=$!
 trap 'kill "$SERVER_PID" 2>/dev/null || true' EXIT

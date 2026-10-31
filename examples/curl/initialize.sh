@@ -12,7 +12,7 @@ INIT_FULL_RESPONSE=$(curl -s -X POST "$SERVER" \
     "id": 1,
     "method": "initialize",
     "params": {
-      "protocolVersion": "2025-06-18",
+      "protocolVersion": "2025-11-25",
       "capabilities": {},
       "clientInfo": {"name": "curl-client", "version": "0.1.0"}
     }

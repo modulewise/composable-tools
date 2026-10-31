@@ -16,6 +16,9 @@ anyhow = "1"
 composable-runtime = { git = "https://github.com/modulewise/composable-runtime", branch = "main", default-features = false }
 serde_json = "1"
 
+[profile.dev.package."*"]
+opt-level = 1
+
 [dependencies]
 anyhow.workspace = true
 composable-runtime.workspace = true
