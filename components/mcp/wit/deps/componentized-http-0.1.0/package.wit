@@ -1,0 +1,537 @@
+package componentized:http@0.1.0;
+
+@since(version = 0.1.0)
+interface client {
+  @since(version = 0.1.0)
+  enum method {
+    get,
+    post,
+    put,
+    delete,
+    patch,
+    head,
+    options,
+    trace,
+    query,
+  }
+
+  /// An error reading the trailers of a response, after its body.
+  @since(version = 0.1.0)
+  variant trailers-error-code {
+    other(option<string>),
+  }
+
+  /// Per-request options. None fields fall through to host defaults.
+  @since(version = 0.1.0)
+  record request-options {
+    connect-timeout-ms: option<u32>,
+    first-byte-timeout-ms: option<u32>,
+    between-bytes-timeout-ms: option<u32>,
+    /// Limit the maximum number of redirects to follow for a single
+    /// request. 0 disables redirects entirely, the redirect response is
+    /// returned. When none, the implementation chooses the limit.
+    /// Exceeding the limit is a `redirect-limit-exceeded` error.
+    max-redirects: option<u8>,
+  }
+
+  /// The request to send to follow a redirect.
+  @since(version = 0.1.0)
+  record redirect-request {
+    method: method,
+    url: string,
+    /// The request headers, without credentials when the redirect leaves
+    /// the origin.
+    headers: list<tuple<string, string>>,
+    /// The options of the original request, with `max-redirects` set to
+    /// the number of redirects remaining. Always set, an option to match
+    /// the `options` parameter of the request functions.
+    options: option<request-options>,
+  }
+
+  /// A streaming HTTP response. The status and headers are available
+  /// immediately; the body streams as `body`, and trailers (if any) resolve
+  /// via `trailers` once the body stream is fully consumed.
+  @since(version = 0.1.0)
+  record http-response {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    body: stream<u8>,
+    trailers: future<result<list<tuple<string, string>>, trailers-error-code>>,
+  }
+
+  @since(version = 0.1.0)
+  variant error-code {
+    /// The response was a redirect past `request-options.max-redirects`.
+    /// Contains the redirect response, and the number of redirects
+    /// followed before it.
+    redirect-limit-exceeded(tuple<http-response, u8>),
+    /// The response was a redirect that sends the request body again. The
+    /// body was already streamed, it can't be sent again. Contains the
+    /// redirect response, and the request to send with the body to follow
+    /// the redirect.
+    redirect-requires-body(tuple<http-response, redirect-request>),
+    other(option<string>),
+  }
+
+  /// Send an HTTP request with an explicit method. Both the request body and
+  /// the response body stream.
+  @since(version = 0.1.0)
+  request: async func(method: method, url: string, headers: list<tuple<string, string>>, body: option<stream<u8>>, options: option<request-options>) -> result<http-response, error-code>;
+
+  /// HTTP GET request.
+  @since(version = 0.1.0)
+  get: async func(url: string, headers: list<tuple<string, string>>, options: option<request-options>) -> result<http-response, error-code>;
+
+  /// HTTP POST request.
+  @since(version = 0.1.0)
+  post: async func(url: string, headers: list<tuple<string, string>>, body: stream<u8>, options: option<request-options>) -> result<http-response, error-code>;
+
+  /// HTTP PUT request.
+  @since(version = 0.1.0)
+  put: async func(url: string, headers: list<tuple<string, string>>, body: stream<u8>, options: option<request-options>) -> result<http-response, error-code>;
+
+  /// HTTP DELETE request.
+  @since(version = 0.1.0)
+  delete: async func(url: string, headers: list<tuple<string, string>>, options: option<request-options>) -> result<http-response, error-code>;
+
+  /// HTTP PATCH request.
+  @since(version = 0.1.0)
+  patch: async func(url: string, headers: list<tuple<string, string>>, body: stream<u8>, options: option<request-options>) -> result<http-response, error-code>;
+
+  /// HTTP HEAD request.
+  @since(version = 0.1.0)
+  head: async func(url: string, headers: list<tuple<string, string>>, options: option<request-options>) -> result<http-response, error-code>;
+
+  /// HTTP OPTIONS request.
+  @since(version = 0.1.0)
+  options: async func(url: string, headers: list<tuple<string, string>>, options: option<request-options>) -> result<http-response, error-code>;
+
+  /// HTTP TRACE request.
+  @since(version = 0.1.0)
+  trace: async func(url: string, headers: list<tuple<string, string>>, options: option<request-options>) -> result<http-response, error-code>;
+
+  /// HTTP QUERY request.
+  @since(version = 0.1.0)
+  query: async func(url: string, headers: list<tuple<string, string>>, body: stream<u8>, options: option<request-options>) -> result<http-response, error-code>;
+}
+
+/// Access control for wasi:http.
+///
+/// A gate consults a latch before each request it sends or handles. The latch either defers,
+/// raising no objection, or denies the request. A latch never grants a request, a request
+/// proceeds when the latch defers. Several latches can be aggregated into one, the request is
+/// denied when any of them denies it.
+///
+/// Deciding and acting on a decision are separate steps. `authorize` decides without side
+/// effects, then the gate reports the final decision to `observe-decision`, where a latch updates
+/// any state it keeps. A latch aggregated with others may not be asked to authorize a request
+/// another latch already denied, but it always observes the final decision.
+@since(version = 0.1.0)
+interface latch {
+  use wasi:http/types@0.3.0.{error-code as http-error-code, request};
+
+  /// Arguments to wasi:http/client#send.
+  @since(version = 0.1.0)
+  record send-args {
+    /// The request to send. A latch may read it, e.g. its method, scheme, authority, path or
+    /// headers, but the request is still sent by the gate, after the latch defers.
+    request: borrow<request>,
+  }
+
+  /// Arguments to wasi:http/handler#handle.
+  @since(version = 0.1.0)
+  record handle-args {
+    /// The request to handle. A latch may read it, e.g. its method, scheme, authority, path or
+    /// headers, but the request is still handled by the gate, after the latch defers.
+    request: borrow<request>,
+  }
+
+  /// Operations of the wasi:http/client interface.
+  @since(version = 0.1.0)
+  variant client-operation {
+    /// Send a request, wasi:http/client#send.
+    send(send-args),
+  }
+
+  /// Operations of the wasi:http/handler interface.
+  @since(version = 0.1.0)
+  variant handler-operation {
+    /// Handle a request, wasi:http/handler#handle.
+    handle(handle-args),
+  }
+
+  /// Operations of the wasi:http package a gate asks a latch to authorize.
+  @since(version = 0.1.0)
+  variant operation {
+    /// A request sent with wasi:http/client.
+    client(client-operation),
+    /// A request handled with wasi:http/handler.
+    handler(handler-operation),
+  }
+
+  /// Whether the request is allowed to proceed.
+  @since(version = 0.1.0)
+  variant decision {
+    /// The latch raises no objection, the request proceeds unless another latch denies it.
+    deferred,
+    /// The request must not proceed. The gate fails it with the error code, without sending
+    /// or handling it.
+    denied(http-error-code),
+  }
+
+  /// The name of a latch component, identifying which latch reported an error.
+  @since(version = 0.1.0)
+  type latch-name = string;
+
+  /// A latch was unable to decide or observe. The gate fails the request.
+  @since(version = 0.1.0)
+  variant error-code {
+    /// The latch's configuration is invalid, the cause is logged by the latch.
+    invalid-config(latch-name),
+    /// The latch was unable to act on the final decision.
+    observation-failed(latch-name),
+    /// Any other error.
+    other(option<string>),
+  }
+
+  /// Decide whether the request may proceed.
+  ///
+  /// Must not have side effects. When latches are aggregated, a latch is not asked about a
+  /// request another latch already denied, so state changed here could disagree with what
+  /// actually happened. Act on decisions in `observe-decision` instead.
+  @since(version = 0.1.0)
+  authorize: func(operation: operation) -> result<decision, error-code>;
+
+  /// Observe the final decision for a request, after `authorize` returned a decision.
+  ///
+  /// Called for both deferred and denied requests, including requests this latch was not asked
+  /// to authorize because an aggregated latch denied them first. The final decision is what the
+  /// gate enforces, so this is where a latch updates any state it keeps. Not called when
+  /// `authorize` returned an error.
+  ///
+  /// An error fails the request, since the latch could not act on the decision.
+  @since(version = 0.1.0)
+  observe-decision: func(final-decision: decision, operation: operation) -> result<_, error-code>;
+}
+
+/// HTTP status codes from the IANA HTTP Status Code Registry,
+/// https://www.iana.org/assignments/http-status-codes/
+@since(version = 0.1.0)
+interface status-codes {
+  /// 100 Continue
+  /// [RFC9110, Section 15.2.1]
+  /// @value 100
+  continue: func() -> u16;
+
+  /// 101 Switching Protocols
+  /// [RFC9110, Section 15.2.2]
+  /// @value 101
+  switching-protocols: func() -> u16;
+
+  /// 102 Processing
+  /// [RFC2518]
+  /// @value 102
+  processing: func() -> u16;
+
+  /// 103 Early Hints
+  /// [RFC8297]
+  /// @value 103
+  early-hints: func() -> u16;
+
+  /// 200 OK
+  /// [RFC9110, Section 15.3.1]
+  /// @value 200
+  ok: func() -> u16;
+
+  /// 201 Created
+  /// [RFC9110, Section 15.3.2]
+  /// @value 201
+  created: func() -> u16;
+
+  /// 202 Accepted
+  /// [RFC9110, Section 15.3.3]
+  /// @value 202
+  accepted: func() -> u16;
+
+  /// 203 Non-Authoritative Information
+  /// [RFC9110, Section 15.3.4]
+  /// @value 203
+  non-authoritative-information: func() -> u16;
+
+  /// 204 No Content
+  /// [RFC9110, Section 15.3.5]
+  /// @value 204
+  no-content: func() -> u16;
+
+  /// 205 Reset Content
+  /// [RFC9110, Section 15.3.6]
+  /// @value 205
+  reset-content: func() -> u16;
+
+  /// 206 Partial Content
+  /// [RFC9110, Section 15.3.7]
+  /// @value 206
+  partial-content: func() -> u16;
+
+  /// 207 Multi-Status
+  /// [RFC4918]
+  /// @value 207
+  multi-status: func() -> u16;
+
+  /// 208 Already Reported
+  /// [RFC5842]
+  /// @value 208
+  already-reported: func() -> u16;
+
+  /// 226 IM Used
+  /// [RFC3229]
+  /// @value 226
+  im-used: func() -> u16;
+
+  /// 300 Multiple Choices
+  /// [RFC9110, Section 15.4.1]
+  /// @value 300
+  multiple-choices: func() -> u16;
+
+  /// 301 Moved Permanently
+  /// [RFC9110, Section 15.4.2]
+  /// @value 301
+  moved-permanently: func() -> u16;
+
+  /// 302 Found
+  /// [RFC9110, Section 15.4.3]
+  /// @value 302
+  found: func() -> u16;
+
+  /// 303 See Other
+  /// [RFC9110, Section 15.4.4]
+  /// @value 303
+  see-other: func() -> u16;
+
+  /// 304 Not Modified
+  /// [RFC9110, Section 15.4.5]
+  /// @value 304
+  not-modified: func() -> u16;
+
+  /// 305 Use Proxy
+  /// [RFC9110, Section 15.4.6]
+  /// @value 305
+  use-proxy: func() -> u16;
+
+  /// 307 Temporary Redirect
+  /// [RFC9110, Section 15.4.8]
+  /// @value 307
+  temporary-redirect: func() -> u16;
+
+  /// 308 Permanent Redirect
+  /// [RFC9110, Section 15.4.9]
+  /// @value 308
+  permanent-redirect: func() -> u16;
+
+  /// 400 Bad Request
+  /// [RFC9110, Section 15.5.1]
+  /// @value 400
+  bad-request: func() -> u16;
+
+  /// 401 Unauthorized
+  /// [RFC9110, Section 15.5.2]
+  /// @value 401
+  unauthorized: func() -> u16;
+
+  /// 402 Payment Required
+  /// [RFC9110, Section 15.5.3]
+  /// @value 402
+  payment-required: func() -> u16;
+
+  /// 403 Forbidden
+  /// [RFC9110, Section 15.5.4]
+  /// @value 403
+  forbidden: func() -> u16;
+
+  /// 404 Not Found
+  /// [RFC9110, Section 15.5.5]
+  /// @value 404
+  not-found: func() -> u16;
+
+  /// 405 Method Not Allowed
+  /// [RFC9110, Section 15.5.6]
+  /// @value 405
+  method-not-allowed: func() -> u16;
+
+  /// 406 Not Acceptable
+  /// [RFC9110, Section 15.5.7]
+  /// @value 406
+  not-acceptable: func() -> u16;
+
+  /// 407 Proxy Authentication Required
+  /// [RFC9110, Section 15.5.8]
+  /// @value 407
+  proxy-authentication-required: func() -> u16;
+
+  /// 408 Request Timeout
+  /// [RFC9110, Section 15.5.9]
+  /// @value 408
+  request-timeout: func() -> u16;
+
+  /// 409 Conflict
+  /// [RFC9110, Section 15.5.10]
+  /// @value 409
+  conflict: func() -> u16;
+
+  /// 410 Gone
+  /// [RFC9110, Section 15.5.11]
+  /// @value 410
+  gone: func() -> u16;
+
+  /// 411 Length Required
+  /// [RFC9110, Section 15.5.12]
+  /// @value 411
+  length-required: func() -> u16;
+
+  /// 412 Precondition Failed
+  /// [RFC9110, Section 15.5.13]
+  /// @value 412
+  precondition-failed: func() -> u16;
+
+  /// 413 Content Too Large
+  /// [RFC9110, Section 15.5.14]
+  /// @value 413
+  content-too-large: func() -> u16;
+
+  /// 414 URI Too Long
+  /// [RFC9110, Section 15.5.15]
+  /// @value 414
+  uri-too-long: func() -> u16;
+
+  /// 415 Unsupported Media Type
+  /// [RFC9110, Section 15.5.16]
+  /// @value 415
+  unsupported-media-type: func() -> u16;
+
+  /// 416 Range Not Satisfiable
+  /// [RFC9110, Section 15.5.17]
+  /// @value 416
+  range-not-satisfiable: func() -> u16;
+
+  /// 417 Expectation Failed
+  /// [RFC9110, Section 15.5.18]
+  /// @value 417
+  expectation-failed: func() -> u16;
+
+  /// 418 I'm a teapot, unused by HTTP and reserved so it isn't assigned
+  /// [RFC2324], [RFC9110, Section 15.5.19]
+  /// @value 418
+  im-a-teapot: func() -> u16;
+
+  /// 421 Misdirected Request
+  /// [RFC9110, Section 15.5.20]
+  /// @value 421
+  misdirected-request: func() -> u16;
+
+  /// 422 Unprocessable Content
+  /// [RFC9110, Section 15.5.21]
+  /// @value 422
+  unprocessable-content: func() -> u16;
+
+  /// 423 Locked
+  /// [RFC4918]
+  /// @value 423
+  locked: func() -> u16;
+
+  /// 424 Failed Dependency
+  /// [RFC4918]
+  /// @value 424
+  failed-dependency: func() -> u16;
+
+  /// 425 Too Early
+  /// [RFC8470]
+  /// @value 425
+  too-early: func() -> u16;
+
+  /// 426 Upgrade Required
+  /// [RFC9110, Section 15.5.22]
+  /// @value 426
+  upgrade-required: func() -> u16;
+
+  /// 428 Precondition Required
+  /// [RFC6585]
+  /// @value 428
+  precondition-required: func() -> u16;
+
+  /// 429 Too Many Requests
+  /// [RFC6585]
+  /// @value 429
+  too-many-requests: func() -> u16;
+
+  /// 431 Request Header Fields Too Large
+  /// [RFC6585]
+  /// @value 431
+  request-header-fields-too-large: func() -> u16;
+
+  /// 451 Unavailable For Legal Reasons
+  /// [RFC7725]
+  /// @value 451
+  unavailable-for-legal-reasons: func() -> u16;
+
+  /// 500 Internal Server Error
+  /// [RFC9110, Section 15.6.1]
+  /// @value 500
+  internal-server-error: func() -> u16;
+
+  /// 501 Not Implemented
+  /// [RFC9110, Section 15.6.2]
+  /// @value 501
+  not-implemented: func() -> u16;
+
+  /// 502 Bad Gateway
+  /// [RFC9110, Section 15.6.3]
+  /// @value 502
+  bad-gateway: func() -> u16;
+
+  /// 503 Service Unavailable
+  /// [RFC9110, Section 15.6.4]
+  /// @value 503
+  service-unavailable: func() -> u16;
+
+  /// 504 Gateway Timeout
+  /// [RFC9110, Section 15.6.5]
+  /// @value 504
+  gateway-timeout: func() -> u16;
+
+  /// 505 HTTP Version Not Supported
+  /// [RFC9110, Section 15.6.6]
+  /// @value 505
+  http-version-not-supported: func() -> u16;
+
+  /// 506 Variant Also Negotiates
+  /// [RFC2295]
+  /// @value 506
+  variant-also-negotiates: func() -> u16;
+
+  /// 507 Insufficient Storage
+  /// [RFC4918]
+  /// @value 507
+  insufficient-storage: func() -> u16;
+
+  /// 508 Loop Detected
+  /// [RFC5842]
+  /// @value 508
+  loop-detected: func() -> u16;
+
+  /// 510 Not Extended, obsoleted
+  /// [RFC2774], [Status change of HTTP experiments to Historic]
+  /// @value 510
+  not-extended: func() -> u16;
+
+  /// 511 Network Authentication Required
+  /// [RFC6585]
+  /// @value 511
+  network-authentication-required: func() -> u16;
+}
+
+world imports {
+  import client;
+  import wasi:clocks/types@0.3.0;
+  import wasi:http/types@0.3.0;
+  import latch;
+}

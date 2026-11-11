@@ -22,10 +22,10 @@ const MCP_TOOL: &str = "oci://ghcr.io/modulewise/component/mcp-tool:0.3.0";
 const MCP_TOOLSET: &str = "oci://ghcr.io/modulewise/component/mcp-toolset:0.3.0";
 
 /// An MCP client.
-const MCP_CLIENT: &str = "oci://ghcr.io/modulewise/component/mcp-client:0.3.0";
+const MCP_CLIENT: &str = "oci://ghcr.io/modulewise/component/mcp-client:0.4.0";
 
 /// An HTTP client over `wasi:http`.
-const HTTP_CLIENT: &str = "oci://ghcr.io/modulewise/component/http-client:0.4.0";
+const HTTP_CLIENT: &str = "oci://ghcr.io/componentized/http/client:0.1.0";
 
 /// Drops log records below a configured level.
 const LOG_LEVELS: &str = "oci://ghcr.io/componentized/logging/levels:0.3.0";

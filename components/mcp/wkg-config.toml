@@ -1,3 +1,4 @@
 [namespace_registries]
 wasi = "wasi.dev"
-composable = { registry = "modulewise", metadata = { preferredProtocol = "oci", oci = { registry = "ghcr.io", namespacePrefix = "modulewise/wit/" } } }
+componentized = "componentized.dev"
+composable ={ registry = "modulewise", metadata = { preferredProtocol = "oci", oci = { registry = "ghcr.io", namespacePrefix = "modulewise/wit/" } } }
