@@ -11,7 +11,7 @@ use composable::mcp::types::{
     CallToolPayload, CallToolRequest, CallToolResponse, InitializePayload, InitializeRequest,
     InitializeResponse, ListToolsPayload, ListToolsRequest, ListToolsResponse,
 };
-use wasi::clocks0_2_6::wall_clock;
+use wasi::clocks::system_clock;
 use wasi::otel::{tracing, types};
 
 struct Interceptor;
@@ -53,10 +53,10 @@ impl exports::composable::mcp::client::GuestSession for InterceptedSession {
             |result, attrs| match result {
                 Ok(target_session) => {
                     let response = target_session.initialize_response();
-                    attrs.push(kv("jsonrpc.request.id", &response.id.to_string()));
+                    attrs.push(kv("jsonrpc.request.id", response.id.to_string()));
                     if let InitializePayload::Result(r) = &response.payload {
-                        attrs.push(kv("mcp.session.id", &r.session_id));
-                        attrs.push(kv("mcp.protocol.version", &r.protocol_version));
+                        attrs.push(kv("mcp.session.id", r.session_id.as_str()));
+                        attrs.push(kv("mcp.protocol.version", r.protocol_version.as_str()));
                     }
                     tracing::Status::Ok
                 }
@@ -96,10 +96,10 @@ impl exports::composable::mcp::client::GuestSession for InterceptedSession {
     ) -> Result<ListToolsResponse, String> {
         let mut initial_attributes = Vec::new();
         if let Some(ref sid) = self.session_id {
-            initial_attributes.push(kv("mcp.session.id", sid));
+            initial_attributes.push(kv("mcp.session.id", sid.as_str()));
         }
         if let Some(ref pv) = self.protocol_version {
-            initial_attributes.push(kv("mcp.protocol.version", pv));
+            initial_attributes.push(kv("mcp.protocol.version", pv.as_str()));
         }
 
         traced_call(
@@ -117,7 +117,7 @@ impl exports::composable::mcp::client::GuestSession for InterceptedSession {
             },
             |result, attrs| match result {
                 Ok(response) => {
-                    attrs.push(kv("jsonrpc.request.id", &response.id.to_string()));
+                    attrs.push(kv("jsonrpc.request.id", response.id.to_string()));
                     match &response.payload {
                         ListToolsPayload::Result(_) => tracing::Status::Ok,
                         ListToolsPayload::Error(e) => {
@@ -142,13 +142,13 @@ impl exports::composable::mcp::client::GuestSession for InterceptedSession {
         let name = request.name.clone();
         let mut initial_attributes = vec![
             kv("gen_ai.operation.name", "execute_tool"),
-            kv("gen_ai.tool.name", &name),
+            kv("gen_ai.tool.name", name.as_str()),
         ];
         if let Some(ref sid) = self.session_id {
-            initial_attributes.push(kv("mcp.session.id", sid));
+            initial_attributes.push(kv("mcp.session.id", sid.as_str()));
         }
         if let Some(ref pv) = self.protocol_version {
-            initial_attributes.push(kv("mcp.protocol.version", pv));
+            initial_attributes.push(kv("mcp.protocol.version", pv.as_str()));
         }
 
         traced_call(
@@ -163,7 +163,7 @@ impl exports::composable::mcp::client::GuestSession for InterceptedSession {
             },
             |result, attrs| match result {
                 Ok(response) => {
-                    attrs.push(kv("jsonrpc.request.id", &response.id.to_string()));
+                    attrs.push(kv("jsonrpc.request.id", response.id.to_string()));
                     match &response.payload {
                         CallToolPayload::Result(call_result) if call_result.is_error => {
                             attrs.push(kv("error.type", "tool_error"));
@@ -194,12 +194,13 @@ impl exports::composable::mcp::client::GuestSession for InterceptedSession {
 }
 
 const SCOPE_NAME: &str = "modulewise.composable.mcp.client";
-const SCOPE_VERSION: &str = "0.2.0";
+const SCOPE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-fn kv(key: &str, value: &str) -> tracing::KeyValue {
+// An attribute, whose value is JSON as wasi:otel specifies.
+fn kv(key: &str, value: impl Into<serde_json::Value>) -> tracing::KeyValue {
     tracing::KeyValue {
         key: key.to_string(),
-        value: value.to_string(),
+        value: value.into().to_string(),
     }
 }
 
@@ -213,17 +214,15 @@ fn scope() -> types::InstrumentationScope {
 }
 
 fn new_span_id() -> String {
-    wasi::random::random::get_random_bytes(8)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
+    format!("{:016x}", wasi::random::random::get_random_u64())
 }
 
 fn new_trace_id() -> String {
-    wasi::random::random::get_random_bytes(16)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect()
+    format!(
+        "{:016x}{:016x}",
+        wasi::random::random::get_random_u64(),
+        wasi::random::random::get_random_u64()
+    )
 }
 
 // Returns true if the SpanContext is the "empty" context (all-zero trace and
@@ -232,11 +231,15 @@ fn is_empty_context(ctx: &tracing::SpanContext) -> bool {
     ctx.trace_id.chars().all(|c| c == '0') && ctx.span_id.chars().all(|c| c == '0')
 }
 
-// Parse server.address and server.port from an MCP server URL.
-// Falls back to the raw URL as address with no port if parsing fails.
+// Parse server.address and server.port from an MCP server URL. The port is the
+// scheme's default when the URL has none. Falls back to the raw URL as address
+// with no port if parsing fails.
 fn parse_server_address(server_url: &str) -> (String, Option<u16>) {
     match url::Url::parse(server_url) {
-        Ok(u) => (u.host_str().unwrap_or(server_url).to_string(), u.port()),
+        Ok(u) => (
+            u.host_str().unwrap_or(server_url).to_string(),
+            u.port_or_known_default(),
+        ),
         Err(_) => (server_url.to_string(), None),
     }
 }
@@ -264,7 +267,7 @@ where
     Finalize: FnOnce(&Result<R, String>, &mut Vec<tracing::KeyValue>) -> tracing::Status,
 {
     let outer = tracing::outer_span_context();
-    let start = wall_clock::now();
+    let start = system_clock::now();
 
     // If there's no outer context, start a fresh trace. Otherwise inherit
     // the trace identity, sampling flag, and tracestate from the parent.
@@ -319,7 +322,7 @@ where
 
     let result = do_call(traceparent, tracestate).await;
 
-    let end = wall_clock::now();
+    let end = system_clock::now();
 
     let (server_address, server_port) = parse_server_address(server_url);
 
@@ -327,9 +330,9 @@ where
     attributes.push(kv("mcp.method.name", method_name));
     attributes.push(kv("network.transport", "tcp"));
     attributes.push(kv("network.protocol.name", "http"));
-    attributes.push(kv("server.address", &server_address));
+    attributes.push(kv("server.address", server_address.as_str()));
     if let Some(port) = server_port {
-        attributes.push(kv("server.port", &port.to_string()));
+        attributes.push(kv("server.port", port));
     }
 
     let status = finalize(&result, &mut attributes);

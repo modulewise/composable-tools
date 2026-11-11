@@ -1,5 +1,5 @@
-/// patched to use 0.2.6 instead of 0.2.0 for wasi:clocks and wasi:io
-package wasi:otel@0.2.0-rc.2+patch;
+/// patched to use wasi:clocks 0.3.0 instead of 0.2.0
+package wasi:otel@0.2.0-rc.2+p3;
 
 interface types {
   /// The key part of attribute `key-value` pairs.
@@ -46,7 +46,7 @@ interface types {
 }
 
 interface tracing {
-  use wasi:clocks/wall-clock@0.2.6.{datetime};
+  use wasi:clocks/system-clock@0.3.0.{instant};
   use types.{key-value, instrumentation-scope};
 
   /// The trace that this `span-context` belongs to.
@@ -103,7 +103,7 @@ interface tracing {
     /// Event name.
     name: string,
     /// Event time.
-    time: datetime,
+    time: instant,
     /// Event attributes.
     attributes: list<key-value>,
   }
@@ -137,9 +137,9 @@ interface tracing {
     /// Span name.
     name: string,
     /// Span start time.
-    start-time: datetime,
+    start-time: instant,
     /// Span end time.
-    end-time: datetime,
+    end-time: instant,
     /// Span attributes.
     attributes: list<key-value>,
     /// Span events.
@@ -171,14 +171,14 @@ interface tracing {
 interface logs {
   use types.{instrumentation-scope, %resource, value, key-value};
   use tracing.{span-id, trace-id, trace-flags};
-  use wasi:clocks/wall-clock@0.2.6.{datetime};
+  use wasi:clocks/system-clock@0.3.0.{instant};
 
   /// Represents the recording of an event.
   record log-record {
     /// Time when the event occurred.
-    timestamp: option<datetime>,
+    timestamp: option<instant>,
     /// Time when the event was observed.
-    observed-timestamp: option<datetime>,
+    observed-timestamp: option<instant>,
     /// The severity text(also known as log level).
     severity-text: option<string>,
     /// The numerical value of the severity ranging from 1-24.
@@ -206,8 +206,7 @@ interface logs {
 }
 
 interface metrics {
-  use wasi:clocks/wall-clock@0.2.6.{datetime};
-  use wasi:clocks/monotonic-clock@0.2.6.{duration};
+  use wasi:clocks/system-clock@0.3.0.{instant};
   use types.{key-value, instrumentation-scope, %resource};
   use tracing.{span-id, trace-id};
 
@@ -258,7 +257,7 @@ interface metrics {
     /// time series' aggregated data.
     filtered-attributes: list<key-value>,
     /// The time when the measurement was recorded.
-    time: datetime,
+    time: instant,
     /// The measured value.
     value: metric-number,
     /// The ID of the span that was active during the measurement.
@@ -287,9 +286,9 @@ interface metrics {
     /// Represents individual aggregated measurements with unique attributes.
     data-points: list<gauge-data-point>,
     /// The time when the time series was started.
-    start-time: option<datetime>,
+    start-time: option<instant>,
     /// The time when the time series was recorded.
-    time: datetime,
+    time: instant,
   }
 
   /// A single data point in a time series to be associated with a `sum`.
@@ -308,9 +307,9 @@ interface metrics {
     /// Represents individual aggregated measurements with unique attributes.
     data-points: list<sum-data-point>,
     /// The time when the time series was started.
-    start-time: datetime,
+    start-time: instant,
     /// The time when the time series was recorded.
-    time: datetime,
+    time: instant,
     /// Describes if the aggregation is reported as the change from the last report
     /// time, or the cumulative changes since a fixed start time.
     temporality: temporality,
@@ -343,9 +342,9 @@ interface metrics {
     /// Individual aggregated measurements with unique attributes.
     data-points: list<histogram-data-point>,
     /// The time when the time series was started.
-    start-time: datetime,
+    start-time: instant,
     /// The time when the time series was recorded.
-    time: datetime,
+    time: instant,
     /// Describes if the aggregation is reported as the change from the last report
     /// time, or the cumulative changes since a fixed start time.
     temporality: temporality,
@@ -394,9 +393,9 @@ interface metrics {
     /// The individual aggregated measurements with unique attributes.
     data-points: list<exponential-histogram-data-point>,
     /// When the time series was started.
-    start-time: datetime,
+    start-time: instant,
     /// The time when the time series was recorded.
-    time: datetime,
+    time: instant,
     /// Describes if the aggregation is reported as the change from the last report
     /// time, or the cumulative changes since a fixed start time.
     temporality: temporality,
@@ -464,10 +463,9 @@ interface metrics {
 
 world imports {
   import types;
-  import wasi:clocks/wall-clock@0.2.6;
+  import wasi:clocks/types@0.3.0;
+  import wasi:clocks/system-clock@0.3.0;
   import tracing;
-  import wasi:io/poll@0.2.6;
-  import wasi:clocks/monotonic-clock@0.2.6;
   import metrics;
   import logs;
 }

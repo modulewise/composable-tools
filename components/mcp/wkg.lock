@@ -16,9 +16,9 @@ name = "wasi:clocks"
 registry = "wasi.dev"
 
 [[packages.versions]]
-requirement = "=0.2.6"
-version = "0.2.6"
-digest = "sha256:569984cc45d3f5a362a3b2897aabbaa3cc4184a6113bfcbbf03c1bd7fc20338c"
+requirement = "=0.3.0"
+version = "0.3.0"
+digest = "sha256:59e1f4079e64ada450e19ffc9d08854c904e356ed8cc1fda36ff4fe150264db2"
 
 [[packages]]
 name = "wasi:config"
@@ -43,6 +43,6 @@ name = "wasi:random"
 registry = "wasi.dev"
 
 [[packages.versions]]
-requirement = "=0.2.6"
-version = "0.2.6"
-digest = "sha256:14ea24097cbe19ae2c79c6ffead72f70c4aed65bb68ef40ed8eca6e08383dc1b"
+requirement = "=0.3.0"
+version = "0.3.0"
+digest = "sha256:daa3c8897a68fbfc58b95c2e1de1b7af5be8c647bbb2cfeaa54c1e5b1ba9b772"

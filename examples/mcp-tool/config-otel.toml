@@ -17,27 +17,20 @@ uri = "oci://ghcr.io/modulewise/component/http-client:0.4.0"
 imports = ["http"]
 
 [component.logger]
-uri = "oci://ghcr.io/componentized/logging/to-stdout:v0.2.1"
-imports = ["stdout-to-stderr", "io", "clocks"]
-
-[component.stdout-to-stderr]
-uri = "oci://ghcr.io/componentized/cli/stdout-to-stderr:v0.1.1"
-imports = ["io", "cli"]
+uri = "oci://ghcr.io/componentized/logging/to-stderr:0.3.1"
+imports = ["cli", "clocks"]
 
 [capability.http]
 type = "wasi:http"
 
-[capability.io]
-type = "wasi:io-p2"
-
 [capability.clocks]
-type = "wasi:clocks-p2"
+type = "wasi:clocks"
 
 [capability.random]
-type = "wasi:random-p2"
+type = "wasi:random"
 
 [capability.cli]
-type = "wasi:cli-p2"
+type = "wasi:cli"
 inherit-stderr = true
 
 [capability.otel]
