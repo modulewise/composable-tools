@@ -3,9 +3,9 @@ name = "mcp-toolset"
 version = "0.3.0"
 edition = "2024"
 description = "MCP Toolset component implementing the composable:tools/toolset interface"
-homepage = "https://github.com/modulewise/composable-mcp/tree/main/components/mcp"
+homepage = "https://github.com/modulewise/composable-tools/tree/main/components/mcp"
 license = "Apache-2.0"
-repository = "https://github.com/modulewise/composable-mcp"
+repository = "https://github.com/modulewise/composable-tools"
 
 [lib]
 crate-type = ["cdylib"]

@@ -3,9 +3,9 @@ name = "tool-adapter"
 version = "0.1.0"
 edition = "2024"
 description = "Tool component that adapts a composable:runtime/function to the composable:tools/tool interface"
-homepage = "https://github.com/modulewise/composable-mcp/tree/main/components/tools"
+homepage = "https://github.com/modulewise/composable-tools/tree/main/components/tools"
 license = "Apache-2.0"
-repository = "https://github.com/modulewise/composable-mcp"
+repository = "https://github.com/modulewise/composable-tools"
 
 [lib]
 crate-type = ["cdylib"]

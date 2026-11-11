@@ -851,7 +851,7 @@ impl ServerHandler for McpServer {
                     env!("CARGO_PKG_VERSION"),
                 )
                 .with_title("Composable MCP Server")
-                .with_website_url("https://github.com/modulewise/composable-mcp"),
+                .with_website_url("https://github.com/modulewise/composable-tools"),
             )
             .with_instructions(format!(
                 "This server provides {} tools. \

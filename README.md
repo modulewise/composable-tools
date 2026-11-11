@@ -8,9 +8,9 @@ A [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) Server that e
 
 Prerequisite: a current [rust toolchain](https://www.rust-lang.org/tools/install)
 
-Clone the [composable-mcp](https://github.com/modulewise/composable-mcp) project if you have not already.
+Clone the [composable-tools](https://github.com/modulewise/composable-tools) project if you have not already.
 
-Then from within the `composable-mcp` directory:
+Then from within the `composable-tools` directory:
 
 ```
 cargo install --path crates/mcp-server

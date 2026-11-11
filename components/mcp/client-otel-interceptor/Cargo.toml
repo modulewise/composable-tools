@@ -2,6 +2,10 @@
 name = "mcp-client-otel-interceptor"
 version = "0.4.0"
 edition = "2024"
+description = "MCP client interceptor component that emits OpenTelemetry spans for composable:mcp/client calls"
+homepage = "https://github.com/modulewise/composable-tools/tree/main/components/mcp"
+license = "Apache-2.0"
+repository = "https://github.com/modulewise/composable-tools"
 
 [lib]
 crate-type = ["cdylib"]

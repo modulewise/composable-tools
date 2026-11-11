@@ -3,9 +3,9 @@ name = "toolset-factory"
 version = "0.1.2"
 edition = "2024"
 description = "Builds a toolset component that aggregates named tool and toolset imports"
-homepage = "https://github.com/modulewise/composable-mcp/tree/main/components/tools"
+homepage = "https://github.com/modulewise/composable-tools/tree/main/components/tools"
 license = "Apache-2.0"
-repository = "https://github.com/modulewise/composable-mcp"
+repository = "https://github.com/modulewise/composable-tools"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
