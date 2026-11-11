@@ -1,6 +1,5 @@
 interface metrics {
-    use wasi:clocks/wall-clock@0.2.6.{datetime};
-    use wasi:clocks/monotonic-clock@0.2.6.{duration};
+    use wasi:clocks/system-clock@0.3.0.{instant};
     use types.{key-value, instrumentation-scope, %resource};
     use tracing.{span-id, trace-id};
 
@@ -71,9 +70,9 @@ interface metrics {
         /// Represents individual aggregated measurements with unique attributes.
         data-points: list<gauge-data-point>,
         /// The time when the time series was started.
-        start-time: option<datetime>,
+        start-time: option<instant>,
         /// The time when the time series was recorded.
-        time: datetime,
+        time: instant,
     }
 
     /// A single data point in a time series to be associated with a `gauge`.
@@ -92,9 +91,9 @@ interface metrics {
          /// Represents individual aggregated measurements with unique attributes.
         data-points: list<sum-data-point>,
         /// The time when the time series was started.
-        start-time: datetime,
+        start-time: instant,
         /// The time when the time series was recorded.
-        time: datetime,
+        time: instant,
         /// Describes if the aggregation is reported as the change from the last report
         /// time, or the cumulative changes since a fixed start time.
         temporality: temporality,
@@ -118,9 +117,9 @@ interface metrics {
         /// Individual aggregated measurements with unique attributes.
         data-points: list<histogram-data-point>,
         /// The time when the time series was started.
-        start-time: datetime,
+        start-time: instant,
         /// The time when the time series was recorded.
-        time: datetime,
+        time: instant,
         /// Describes if the aggregation is reported as the change from the last report
         /// time, or the cumulative changes since a fixed start time.
         temporality: temporality,
@@ -151,9 +150,9 @@ interface metrics {
         /// The individual aggregated measurements with unique attributes.
         data-points: list<exponential-histogram-data-point>,
         /// When the time series was started.
-        start-time: datetime,
+        start-time: instant,
         /// The time when the time series was recorded.
-        time: datetime,
+        time: instant,
         /// Describes if the aggregation is reported as the change from the last report
         /// time, or the cumulative changes since a fixed start time.
         temporality: temporality,
@@ -214,7 +213,7 @@ interface metrics {
         /// time series' aggregated data.
         filtered-attributes: list<key-value>,
         /// The time when the measurement was recorded.
-        time: datetime,
+        time: instant,
         /// The measured value.
         value: metric-number,
         /// The ID of the span that was active during the measurement.

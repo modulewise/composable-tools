@@ -157,7 +157,7 @@ impl Guest for ToolAdapter {
                 headers: meta,
             },
             &header_mapping(),
-            |input| composable::runtime::function::call(input),
+            composable::runtime::function::call,
         )
         .await;
 

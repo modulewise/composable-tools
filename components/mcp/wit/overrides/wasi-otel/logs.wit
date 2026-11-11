@@ -1,7 +1,7 @@
 interface logs {
     use types.{instrumentation-scope, %resource, value, key-value};
     use tracing.{span-id, trace-id, trace-flags};
-    use wasi:clocks/wall-clock@0.2.6.{datetime};
+    use wasi:clocks/system-clock@0.3.0.{instant};
 
     /// Called when a log is emitted.
     on-emit: func(data: log-record);
@@ -9,9 +9,9 @@ interface logs {
     /// Represents the recording of an event.
     record log-record {
         /// Time when the event occurred.
-        timestamp: option<datetime>,
+        timestamp: option<instant>,
         /// Time when the event was observed.
-        observed-timestamp: option<datetime>,
+        observed-timestamp: option<instant>,
         /// The severity text(also known as log level).
         severity-text: option<string>,
         /// The numerical value of the severity ranging from 1-24.

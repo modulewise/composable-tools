@@ -30,20 +30,14 @@ const HTTP_CLIENT: &str = "oci://ghcr.io/modulewise/component/http-client:0.4.0"
 /// Drops log records below a configured level.
 const LOG_LEVELS: &str = "oci://ghcr.io/componentized/logging/levels:0.3.0";
 
-/// Writes log records to stdout.
-const LOG_TO_STDOUT: &str = "oci://ghcr.io/componentized/logging/to-stdout:0.3.0";
-
-/// Redirects stdout to stderr.
-const STDOUT_TO_STDERR: &str = "oci://ghcr.io/componentized/cli/stdout-to-stderr:0.2.0";
+/// Writes log records to stderr.
+const LOG_TO_STDERR: &str = "oci://ghcr.io/componentized/logging/to-stderr:0.3.1";
 
 /// The logger every MCP client imports, emitted once.
 const MCP_LOGGER_NAME: &str = "_mcp-logger";
 
 /// The writer behind the MCP logger, emitted once.
 const MCP_LOG_WRITER_NAME: &str = "_mcp-log-writer";
-
-/// The redirect of the MCP log writer's stdout to stderr, emitted once.
-const MCP_STDOUT_TO_STDERR_NAME: &str = "_mcp-stdout-to-stderr";
 
 /// The `wasi:http` capability every MCP HTTP client imports, emitted once.
 const MCP_HTTP_NAME: &str = "_mcp-http";
@@ -263,13 +257,9 @@ fn mcp_shared() -> Vec<Definition> {
         component(
             MCP_LOG_WRITER_NAME,
             json!({
-                "uri": LOG_TO_STDOUT,
-                "imports": [MCP_STDOUT_TO_STDERR_NAME, MCP_CLI_NAME, MCP_CLOCKS_NAME],
+                "uri": LOG_TO_STDERR,
+                "imports": [MCP_CLI_NAME, MCP_CLOCKS_NAME],
             }),
-        ),
-        component(
-            MCP_STDOUT_TO_STDERR_NAME,
-            json!({ "uri": STDOUT_TO_STDERR, "imports": [MCP_CLI_NAME] }),
         ),
         capability(MCP_HTTP_NAME, json!({ "type": "wasi:http" })),
         capability(
@@ -633,13 +623,9 @@ mod tests {
         assert_eq!(
             shared_components[MCP_LOG_WRITER_NAME],
             json!({
-                "uri": LOG_TO_STDOUT,
-                "imports": [MCP_STDOUT_TO_STDERR_NAME, MCP_CLI_NAME, MCP_CLOCKS_NAME],
+                "uri": LOG_TO_STDERR,
+                "imports": [MCP_CLI_NAME, MCP_CLOCKS_NAME],
             })
-        );
-        assert_eq!(
-            shared_components[MCP_STDOUT_TO_STDERR_NAME],
-            json!({ "uri": STDOUT_TO_STDERR, "imports": [MCP_CLI_NAME] })
         );
         let shared_capabilities = capabilities(&first);
         assert_eq!(

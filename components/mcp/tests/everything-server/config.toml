@@ -93,12 +93,8 @@ uri = "oci://ghcr.io/modulewise/component/http-client:0.4.0"
 imports = ["http"]
 
 [component.logger]
-uri = "oci://ghcr.io/componentized/logging/to-stdout:0.3.0"
-imports = ["stdout-to-stderr", "cli", "clocks"]
-
-[component.stdout-to-stderr]
-uri = "oci://ghcr.io/componentized/cli/stdout-to-stderr:0.2.0"
-imports = ["cli"]
+uri = "oci://ghcr.io/componentized/logging/to-stderr:0.3.1"
+imports = ["cli", "clocks"]
 
 [capability.http]
 type = "wasi:http"
