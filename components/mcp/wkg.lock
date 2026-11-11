@@ -3,13 +3,13 @@
 version = 1
 
 [[packages]]
-name = "composable:http"
-registry = "modulewise"
+name = "componentized:http"
+registry = "componentized.dev"
 
 [[packages.versions]]
-requirement = "=0.4.0"
-version = "0.4.0"
-digest = "sha256:8d9218b0e80ee4eb80e5d7d91d34ee9eaa9ccfc0487aa40974990213782c1f28"
+requirement = "=0.1.0"
+version = "0.1.0"
+digest = "sha256:2a8f5b6658165f9773c751718793ea6c2c5c7678ecd250fc58d9aa20b9abc041"
 
 [[packages]]
 name = "wasi:clocks"

@@ -21,10 +21,10 @@ See [`wit/package.wit`](wit/package.wit) for the full type definitions.
 ## The `mcp-client` World
 
 - exports `composable:mcp/client`
-- imports `composable:http/client`
+- imports `componentized:http/client`
 - imports `wasi:logging/logging`
 
-The `composable:http/client` import can be satisfied by the [`http-client`](https://github.com/modulewise/composable-runtime/tree/main/components/http) component. The `wasi:logging` import can be satisfied by any component exporting that interface.
+The `componentized:http/client` import can be satisfied by the `oci://ghcr.io/componentized/http/client:0.1.0` component. The `wasi:logging` import can be satisfied by any component exporting that interface.
 
 ## The `mcp-client` Component
 

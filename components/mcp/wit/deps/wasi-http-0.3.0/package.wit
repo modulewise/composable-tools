@@ -151,9 +151,3 @@ interface types {
   }
 }
 
-interface client {
-  use types.{request, response, error-code};
-
-  send: async func(request: request) -> result<response, error-code>;
-}
-

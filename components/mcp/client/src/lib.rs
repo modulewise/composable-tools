@@ -8,7 +8,7 @@ wit_bindgen::generate!({
     generate_all,
 });
 
-use composable::http::client::HttpResponse;
+use componentized::http::client::{HttpResponse, RequestOptions};
 use composable::mcp::types::*;
 use wasi::logging::logging::{Level, log};
 use wit_bindgen::rt::async_support::spawn_local;
@@ -236,12 +236,18 @@ impl exports::composable::mcp::client::GuestSession for Session {
 
         let headers = vec![("MCP-Session-Id".to_string(), self.session_id.clone())];
 
-        match composable::http::client::delete(self.server_url.clone(), headers, None).await {
+        match componentized::http::client::delete(
+            self.server_url.clone(),
+            headers,
+            Some(NO_REDIRECTS),
+        )
+        .await
+        {
             Ok(response) => {
                 log_debug(&format!("Terminate response status: {}", response.status));
             }
             Err(e) => {
-                log_error(&format!("Terminate request failed: {}", e));
+                log_error(&format!("Terminate request failed: {}", http_error(e)));
             }
         }
     }
@@ -255,6 +261,13 @@ impl Session {
     }
 }
 
+const NO_REDIRECTS: RequestOptions = RequestOptions {
+    connect_timeout_ms: None,
+    first_byte_timeout_ms: None,
+    between_bytes_timeout_ms: None,
+    max_redirects: Some(0),
+};
+
 // POST to the MCP server with the standard Content-Type and Accept headers.
 // Include the MCP-Session-Id and MCP-Protocol-Version headers when available.
 // The request body is streamed via the http-client's stream<u8> input.
@@ -264,7 +277,7 @@ async fn post(
     session_id: Option<&str>,
     protocol_version: Option<&str>,
 ) -> Result<HttpResponse, String> {
-    use composable::http::client;
+    use componentized::http::client;
 
     let mut headers = vec![
         ("Content-Type".to_string(), "application/json".to_string()),
@@ -286,7 +299,7 @@ async fn post(
         let _ = body_tx.write_all(body_bytes).await;
     });
 
-    let response = client::post(url.to_string(), headers, body_rx, None)
+    let response = client::post(url.to_string(), headers, body_rx, Some(NO_REDIRECTS))
         .await
         .map_err(|e| {
             let message = http_error(e);
@@ -776,10 +789,18 @@ fn parse_content_item(item: &serde_json::Value) -> Result<ContentBlock, String> 
 }
 
 // An http-client error as a message.
-fn http_error(error: composable::http::client::ErrorCode) -> String {
+fn http_error(error: componentized::http::client::ErrorCode) -> String {
+    use componentized::http::client::ErrorCode;
     match error {
-        composable::http::client::ErrorCode::Other(Some(detail)) => detail,
-        composable::http::client::ErrorCode::Other(None) => "unknown error".to_string(),
+        ErrorCode::RedirectLimitExceeded((response, _))
+        | ErrorCode::RedirectRequiresBody((response, _)) => {
+            format!(
+                "the server redirected the request (status {})",
+                response.status
+            )
+        }
+        ErrorCode::Other(Some(detail)) => detail,
+        ErrorCode::Other(None) => "unknown error".to_string(),
     }
 }
 

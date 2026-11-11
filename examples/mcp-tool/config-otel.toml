@@ -13,7 +13,7 @@ uri = "../../components/lib/mcp-client.wasm"
 imports = ["http-client", "logger"]
 
 [component.http-client]
-uri = "oci://ghcr.io/modulewise/component/http-client:0.4.0"
+uri = "oci://ghcr.io/componentized/http/client:0.1.0"
 imports = ["http"]
 
 [component.logger]
