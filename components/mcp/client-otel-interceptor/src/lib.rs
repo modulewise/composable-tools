@@ -58,12 +58,9 @@ impl exports::composable::mcp::client::GuestSession for InterceptedSession {
                         attrs.push(kv("mcp.session.id", r.session_id.as_str()));
                         attrs.push(kv("mcp.protocol.version", r.protocol_version.as_str()));
                     }
-                    tracing::Status::Ok
+                    None
                 }
-                Err(err) => {
-                    attrs.push(kv("error.type", "transport_error"));
-                    tracing::Status::Error(err.clone())
-                }
+                Err(err) => Some(("transport_error", err.clone())),
             },
         )
         .await?;
@@ -119,20 +116,14 @@ impl exports::composable::mcp::client::GuestSession for InterceptedSession {
                 Ok(response) => {
                     attrs.push(kv("jsonrpc.request.id", response.id.to_string()));
                     match &response.payload {
-                        ListToolsPayload::Result(_) => tracing::Status::Ok,
-                        ListToolsPayload::Error(e) => {
-                            attrs.push(kv("error.type", "protocol_error"));
-                            tracing::Status::Error(format!(
-                                "protocol error {}: {}",
-                                e.code, e.message
-                            ))
-                        }
+                        ListToolsPayload::Result(_) => None,
+                        ListToolsPayload::Error(e) => Some((
+                            "protocol_error",
+                            format!("protocol error {}: {}", e.code, e.message),
+                        )),
                     }
                 }
-                Err(err) => {
-                    attrs.push(kv("error.type", "transport_error"));
-                    tracing::Status::Error(err.clone())
-                }
+                Err(err) => Some(("transport_error", err.clone())),
             },
         )
         .await
@@ -166,23 +157,16 @@ impl exports::composable::mcp::client::GuestSession for InterceptedSession {
                     attrs.push(kv("jsonrpc.request.id", response.id.to_string()));
                     match &response.payload {
                         CallToolPayload::Result(call_result) if call_result.is_error => {
-                            attrs.push(kv("error.type", "tool_error"));
-                            tracing::Status::Error("tool returned error".to_string())
+                            Some(("tool_error", "tool returned error".to_string()))
                         }
-                        CallToolPayload::Result(_) => tracing::Status::Ok,
-                        CallToolPayload::Error(e) => {
-                            attrs.push(kv("error.type", "protocol_error"));
-                            tracing::Status::Error(format!(
-                                "protocol error {}: {}",
-                                e.code, e.message
-                            ))
-                        }
+                        CallToolPayload::Result(_) => None,
+                        CallToolPayload::Error(e) => Some((
+                            "protocol_error",
+                            format!("protocol error {}: {}", e.code, e.message),
+                        )),
                     }
                 }
-                Err(err) => {
-                    attrs.push(kv("error.type", "transport_error"));
-                    tracing::Status::Error(err.clone())
-                }
+                Err(err) => Some(("transport_error", err.clone())),
             },
         )
         .await
@@ -226,7 +210,8 @@ fn new_trace_id() -> String {
 }
 
 // Returns true if the SpanContext is the "empty" context (all-zero trace and
-// span IDs), which the host returns when there's no propagated outer trace.
+// span IDs), which the host returns when there's no open span and no
+// propagated trace.
 fn is_empty_context(ctx: &tracing::SpanContext) -> bool {
     ctx.trace_id.chars().all(|c| c == '0') && ctx.span_id.chars().all(|c| c == '0')
 }
@@ -248,7 +233,8 @@ fn parse_server_address(server_url: &str) -> (String, Option<u16>) {
 // the W3C traceparent and optional serialized tracestate so it can inject
 // them into the outgoing request's `_meta` before invoking the target.
 // The `finalize` closure runs after the call returns. It may push
-// result-derived attributes, and it returns the span Status.
+// result-derived attributes, and it returns the error type and description
+// if the call failed.
 //
 // The `mcp.method.name`, `server.address`, and `server.port` attributes are
 // added by the helper, and `initial_attributes` includes the input-derived
@@ -264,14 +250,15 @@ async fn traced_call<R, DoCall, Fut, Finalize>(
 where
     DoCall: FnOnce(String, Option<String>) -> Fut,
     Fut: Future<Output = Result<R, String>>,
-    Finalize: FnOnce(&Result<R, String>, &mut Vec<tracing::KeyValue>) -> tracing::Status,
+    Finalize:
+        FnOnce(&Result<R, String>, &mut Vec<tracing::KeyValue>) -> Option<(&'static str, String)>,
 {
-    let outer = tracing::outer_span_context();
+    let parent = tracing::current_span_context();
     let start = system_clock::now();
 
-    // If there's no outer context, start a fresh trace. Otherwise inherit
+    // If there's no current context, start a fresh trace. Otherwise inherit
     // the trace identity, sampling flag, and tracestate from the parent.
-    let (trace_id, parent_span_id, trace_flags, trace_state) = if is_empty_context(&outer) {
+    let (trace_id, parent_span_id, trace_flags, trace_state) = if is_empty_context(&parent) {
         (
             new_trace_id(),
             String::new(),
@@ -280,10 +267,10 @@ where
         )
     } else {
         (
-            outer.trace_id.clone(),
-            outer.span_id.clone(),
-            outer.trace_flags,
-            outer.trace_state.clone(),
+            parent.trace_id.clone(),
+            parent.span_id.clone(),
+            parent.trace_flags,
+            parent.trace_state.clone(),
         )
     };
 
@@ -335,7 +322,13 @@ where
         attributes.push(kv("server.port", port));
     }
 
-    let status = finalize(&result, &mut attributes);
+    let status = match finalize(&result, &mut attributes) {
+        Some((error_type, description)) => {
+            attributes.push(kv("error.type", error_type));
+            tracing::Status::Error(description)
+        }
+        None => tracing::Status::Unset,
+    };
 
     tracing::on_end(&tracing::SpanData {
         span_context,
